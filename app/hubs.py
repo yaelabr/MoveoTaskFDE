@@ -60,3 +60,17 @@ def resolve_hubs(queries: list[str]) -> list[Hub]:
             found.append(hub)
             seen.add(hub.id)
     return found
+
+
+def hubs_mentioned_in_text(text: str) -> list[Hub]:
+    """Find curated hubs named in free text (city / id / short name)."""
+    lowered = text.lower()
+    found: list[Hub] = []
+    for hub in load_hubs():
+        if (
+            hub.city.lower() in lowered
+            or f" {hub.id} " in f" {lowered} "
+            or hub.id == lowered.strip()
+        ):
+            found.append(hub)
+    return found

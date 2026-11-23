@@ -70,5 +70,23 @@
     "region": "Southeast",
     "lat": 33.7490,
     "lon": -84.3880
+  },
+  {
+    "id": "sea",
+    "name": "Seattle Distribution Hub",
+    "city": "Seattle",
+    "state": "WA",
+    "region": "Pacific",
+    "lat": 47.6062,
+    "lon": -122.3321
+  },
+  {
+    "id": "phx",
+    "name": "Phoenix Distribution Hub",
+    "city": "Phoenix",
+    "state": "AZ",
+    "region": "Southwest",
+    "lat": 33.4484,
+    "lon": -112.0740
   }
 ]

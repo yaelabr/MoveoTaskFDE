@@ -11,7 +11,7 @@ from typing import TypeVar
 
 from openai import APIStatusError, OpenAI
 
-from app.hubs import Hub, all_hubs, get_hub, hubs_by_region, resolve_hubs
+from app.hubs import Hub, all_hubs, get_hub, hubs_by_region, hubs_mentioned_in_text, resolve_hubs
 from app.risk import RiskResult, rank_results, score_hub
 from app.schemas import ChatResponse, FactorOut, HubRiskOut, IntentParse
 from app.weather import fetch_features
@@ -186,12 +186,20 @@ def parse_intent(message: str, history: list[dict[str, str]] | None = None) -> I
         return heuristic_intent(message)
 
 
-def _select_hubs(intent: IntentParse) -> list[Hub]:
+def _select_hubs(intent: IntentParse, message: str = "") -> list[Hub]:
     hubs: list[Hub] = []
     if intent.hub_ids:
         hubs = resolve_hubs(intent.hub_ids)
         if not hubs:
             hubs = [h for hid in intent.hub_ids if (h := get_hub(hid))]
+    # Always merge cities/ids explicitly named in the user message.
+    if message:
+        mentioned = hubs_mentioned_in_text(message)
+        seen = {h.id for h in hubs}
+        for hub in mentioned:
+            if hub.id not in seen:
+                hubs.append(hub)
+                seen.add(hub.id)
     if not hubs and intent.region:
         hubs = hubs_by_region(intent.region)
     if not hubs and intent.intent in {"rank", "other"}:
@@ -286,37 +294,36 @@ def _template_answer(intent: IntentParse, results: list[RiskResult]) -> str:
     else:
         top_detail = f" with overall score {top.risk_score}"
 
+    score_bits = "; ".join(f"{r.hub.city} {r.risk_score}" for r in results[:5])
     if intent.intent == "compare" and len(results) >= 2:
-        a, b = results[0], results[1]
         answer = (
-            f"Comparing on **{focus}**, **{a.hub.city}** currently looks more exposed than "
-            f"**{b.hub.city}** in our curated set"
-            f"{' (driven by' + top_detail + ')' if top_detail else ''}. "
-            f"Full factor breakdowns are in the structured details."
+            f"On **{focus}**, relative order is **{ranked_names}** "
+            f"(overall scores: {score_bits}). "
+            f"**{top.hub.city}** ranks highest{top_detail}. "
+            f"Treat these as relative comparisons within our curated set, not absolute severity."
         )
     elif intent.intent == "explain" and len(results) == 1:
         r = results[0]
         parts = ", ".join(f"{f.name} {f.value}" for f in r.factors)
         answer = (
-            f"**{r.hub.city}**'s disruption risk score is **{r.risk_score}** on our 0–100 KPI. "
-            f"The main drivers are {parts}. "
-            f"These come from last-year Open-Meteo features (relative comparison, not loss estimates)."
+            f"**{r.hub.city}** scores **{r.risk_score}** on our 0–100 relative KPI. "
+            f"Factor contributions: {parts}. "
+            f"Numbers come from last-year Open-Meteo features — useful for ranking hubs, not loss estimates."
         )
     else:
         scope = intent.region or "our curated hub list"
         answer = (
-            f"For **{focus}** across {scope}, I'd rank them: **{ranked_names}**. "
-            f"**{top.hub.city}** leads{top_detail}. "
-            f"These are relative decision aids from last-year weather features — "
-            f"open structured details for the full factor table."
+            f"For **{focus}** across {scope}, relative order is **{ranked_names}** "
+            f"(scores: {score_bits}). "
+            f"**{top.hub.city}** leads{top_detail}."
         )
 
     answer += (
-        " Assumptions: fixed hub list; Gulf hurricane/flood uses precip + a transparent coastal bump, "
-        "not a storm catalogue."
+        " Assumptions: fixed hub list; last ~365 days of Open-Meteo archive; "
+        "Gulf hurricane/flood uses precip plus a transparent coastal bump, not a storm catalogue."
     )
     if intent.notes == "heuristic_fallback":
-        answer += " (Gemini was briefly unavailable, so this explanation used the deterministic fallback.)"
+        answer += " (Gemini was unavailable; used deterministic fallback explanation.)"
     return answer
 
 
@@ -328,12 +335,24 @@ def narrate_answer(message: str, intent: IntentParse, results: list[RiskResult])
         return _template_answer(intent, results)
 
     system = (
-        "You are a logistics weather-risk analyst assistant speaking in chat. "
-        "Write a short conversational answer (2–5 sentences). "
-        "Use ONLY the provided computed facts — never invent or alter scores. "
-        "Lead with the ranking or comparison in plain language; mention 1–2 key numbers as evidence. "
-        "Do NOT dump raw factor tables or JSON in the answer — those belong in structured details. "
-        "End with one brief assumptions/uncertainty clause when relevant."
+        "You are a careful logistics weather-risk analyst assistant in chat.\n"
+        "Write 3–5 short conversational sentences.\n"
+        "Rules:\n"
+        "1) Use ONLY the provided computed facts. Never invent or change numbers.\n"
+        "2) If multiple hubs are in the facts, name ALL of them in relative order "
+        "(e.g. A > B > C) and include each hub's overall risk_score once. "
+        "Never say 'among the evaluated locations' without naming each hub.\n"
+        "3) Scores are relative 0–100 decision aids for this curated set. "
+        "Do NOT call low absolute scores 'high', 'elevated', or 'significant' "
+        "unless they are clearly large on the 0–100 scale (roughly >25). "
+        "Prefer wording like 'ranks highest among these hubs' / 'relatively higher'.\n"
+        "4) Explain the main driver with the relevant factor name and value "
+        "(winter/flood/wind) without dumping a full table.\n"
+        "5) Do NOT mention forecasts, preparedness, climatology models, or insurance. "
+        "If you add an assumptions clause, use only: curated fixed hub list; "
+        "last ~365 days Open-Meteo archive; relative KPI not loss estimate; "
+        "Gulf flood includes a transparent coastal bump (not a hurricane model).\n"
+        "6) No JSON, bullets, or raw factor tables in the chat answer."
     )
     user = (
         f"User question: {message}\n\n"
@@ -349,7 +368,7 @@ def narrate_answer(message: str, intent: IntentParse, results: list[RiskResult])
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            temperature=0.3,
+            temperature=0.2,
         )
         return (response.choices[0].message.content or "").strip()
 
@@ -365,7 +384,7 @@ def handle_chat(message: str, session_id: str | None = None) -> ChatResponse:
     history = _SESSIONS.setdefault(sid, [])
 
     intent = parse_intent(message, history)
-    hubs = _select_hubs(intent)
+    hubs = _select_hubs(intent, message)
     results = _score_many(hubs)
     sort_by = intent.sort_by or "risk_score"
     ranked = rank_results(results, sort_by=sort_by)
