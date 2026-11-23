@@ -1,56 +1,89 @@
 # Weather Risk Intelligence Agent
 
-Junior FDE take-home: rank/compare a small set of US logistics hubs by weather disruption risk. **Scores are computed in Python**; Gemini only parses questions and explains the numbers.
+Take-home for a logistics weather-risk use case: help analysts decide which US distribution hubs are most exposed to weather disruption.
 
-## Architecture (short)
+**Design rule:** risk scores and rankings are computed in Python. Gemini only interprets the question (structured JSON) and explains the numbers. The model is not allowed to invent scores.
+
+**Repo:** https://github.com/yaelabr/MoveoTaskFDE
+
+## Architecture
 
 ```
-Streamlit UI  →  FastAPI (/chat, /hubs, /health)
-                    ├── Gemini (structured intent JSON + narration)
-                    ├── risk.py (deterministic 0–100 KPI)
-                    └── Open-Meteo archive (last ~365 days)
-                           ↑
-                      data/hubs.json
+Streamlit chat  →  FastAPI (/chat, /hubs, /health, /risk/*)
+                      ├── Gemini (structured intent + narration)
+                      ├── risk.py (deterministic 0–100 KPI)
+                      └── Open-Meteo archive (~last 365 days)
+                             ↑
+                        data/hubs.json  (10 curated hubs)
 ```
 
-**Risk KPI:** weighted blend of `winter` (40%), `flood` (35%), `wind` (25%). Gulf hubs get a fixed coastal bump on flood as a transparent hurricane/flood *proxy* — not a catastrophe model.
+**KPI weights:** winter 40% · flood/heavy precip 35% · wind 25%.  
+Gulf hubs get a small, documented coastal bump on flood as a **hurricane/flood proxy** (not a catastrophe model).
+
+## Prerequisites
+
+- Python **3.10+**
+- Free [Google AI Studio](https://aistudio.google.com/apikey) API key (chat only; ranking/evals work without it)
 
 ## Setup
 
 ```bash
-cd moveo
+git clone https://github.com/yaelabr/MoveoTaskFDE.git
+cd MoveoTaskFDE
+
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+
 cp .env.example .env
-# edit .env and set GEMINI_API_KEY (see below)
+# set GEMINI_API_KEY=... in .env
 ```
+
+Keep `GEMINI_MODEL=gemini-3.5-flash-lite` (default). Older model ids often 404 for new keys; heavier Flash models burn free-tier quota quickly.
 
 ## Run
 
-Terminal 1 — API:
+Start the **API first**, then the UI (two terminals, venv activated in both).
+
+**Terminal 1 — API**
 
 ```bash
 source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-Terminal 2 — chat UI:
+**Terminal 2 — chat UI**
 
 ```bash
 source .venv/bin/activate
 streamlit run ui/chat.py
 ```
 
-Useful without the LLM:
+- API: http://127.0.0.1:8000  
+- UI: http://127.0.0.1:8501 (Streamlit default)  
+- Health: http://127.0.0.1:8000/health  
 
-- `GET http://127.0.0.1:8000/hubs`
-- `GET http://127.0.0.1:8000/hubs/dal/risk`
-- `GET http://127.0.0.1:8000/risk/ranking`
+### Try these questions
 
-## Eval
+1. Which hubs in the Midwest are most exposed to winter disruption?  
+2. Compare Miami and Houston in terms of hurricane and flood exposure.  
+3. What percentage of days in Denver last year had snowfall?  
+4. Why is the Dallas hub's weather disruption risk high?  
+5. Follow-up in the same chat: What about Chicago?  
 
-Does **not** need a Gemini key (uses Open-Meteo + risk engine):
+### Without the LLM
+
+Useful for demos if Gemini quota is tight:
+
+- `GET /hubs`
+- `GET /hubs/{id}/risk` (e.g. `/hubs/dal/risk`)
+- `GET /risk/ranking`
+
+If Gemini is unavailable, `/chat` still returns deterministic scores with a heuristic/template explanation.
+
+## Evaluation
+
+No Gemini key required (Open-Meteo + risk engine):
 
 ```bash
 source .venv/bin/activate
@@ -59,19 +92,18 @@ python evals/run_eval.py
 
 ## Assumptions & uncertainty
 
-- Fixed curated hub list (~8), not a full real network
-- “Last year” = last 365 days of Open-Meteo archive (with a few days lag)
-- Scores are relative decision aids, not absolute loss estimates
-- Gulf hurricane/flood signal = heavy precip + coastal bump
-- LLM must not invent scores; code owns the KPI
+- Fixed curated hub list (10 hubs), not a full real network  
+- “Last year” ≈ last 365 days of Open-Meteo archive (short lag)  
+- Scores are **relative** decision aids (0–100), not absolute loss estimates  
+- Gulf hurricane/flood signal = heavy precip + transparent coastal bump  
+- Grid weather may differ from exact hub-site conditions  
+- LLM explains; code owns the KPI  
 
-## Gemini API key
+## Project layout
 
-1. Open [Google AI Studio](https://aistudio.google.com/apikey) and create a free API key  
-2. Put it in `.env` as `GEMINI_API_KEY=...`  
-3. Keep `GEMINI_MODEL=gemini-3.5-flash-lite` (free-tier friendly). Older ids like `gemini-2.0-flash` 404 for new keys; heavier flash models often hit free-tier quota (429).
-4. Restart uvicorn  
-
-Chat (`/chat` and Streamlit) needs the key. Hub listing and deterministic risk endpoints do not.
-
-The agent tries lite/fallback Gemini models automatically. Only if all fail does it use heuristic intent + template explanation.
+```
+app/           FastAPI, agent, risk, weather, hubs
+ui/chat.py     Streamlit client
+data/hubs.json Curated hubs
+evals/         Small deterministic eval harness
+```
