@@ -1,0 +1,74 @@
+[
+  {
+    "id": "chi",
+    "name": "Chicago Distribution Hub",
+    "city": "Chicago",
+    "state": "IL",
+    "region": "Midwest",
+    "lat": 41.8781,
+    "lon": -87.6298
+  },
+  {
+    "id": "det",
+    "name": "Detroit Distribution Hub",
+    "city": "Detroit",
+    "state": "MI",
+    "region": "Midwest",
+    "lat": 42.3314,
+    "lon": -83.0458
+  },
+  {
+    "id": "msp",
+    "name": "Minneapolis Distribution Hub",
+    "city": "Minneapolis",
+    "state": "MN",
+    "region": "Midwest",
+    "lat": 44.9778,
+    "lon": -93.2650
+  },
+  {
+    "id": "den",
+    "name": "Denver Distribution Hub",
+    "city": "Denver",
+    "state": "CO",
+    "region": "Mountain",
+    "lat": 39.7392,
+    "lon": -104.9903
+  },
+  {
+    "id": "dal",
+    "name": "Dallas Distribution Hub",
+    "city": "Dallas",
+    "state": "TX",
+    "region": "South",
+    "lat": 32.7767,
+    "lon": -96.7970
+  },
+  {
+    "id": "hou",
+    "name": "Houston Distribution Hub",
+    "city": "Houston",
+    "state": "TX",
+    "region": "Gulf",
+    "lat": 29.7604,
+    "lon": -95.3698
+  },
+  {
+    "id": "mia",
+    "name": "Miami Distribution Hub",
+    "city": "Miami",
+    "state": "FL",
+    "region": "Gulf",
+    "lat": 25.7617,
+    "lon": -80.1918
+  },
+  {
+    "id": "atl",
+    "name": "Atlanta Distribution Hub",
+    "city": "Atlanta",
+    "state": "GA",
+    "region": "Southeast",
+    "lat": 33.7490,
+    "lon": -84.3880
+  }
+]

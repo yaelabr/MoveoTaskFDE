@@ -1,0 +1,41 @@
+[
+  {
+    "id": "midwest_winter",
+    "description": "Midwest winter ranking should surface Midwest hubs and prefer winter factor",
+    "mode": "deterministic",
+    "region": "Midwest",
+    "sort_by": "winter",
+    "expect_hub_ids_subset": ["chi", "det", "msp"],
+    "expect_top_region": "Midwest"
+  },
+  {
+    "id": "mia_vs_hou_flood",
+    "description": "Miami and Houston both appear when comparing Gulf flood exposure",
+    "mode": "deterministic",
+    "hub_ids": ["mia", "hou"],
+    "sort_by": "flood",
+    "expect_hub_ids_exact": ["mia", "hou"]
+  },
+  {
+    "id": "denver_snow_metric",
+    "description": "Denver snow-day percentage is a number between 0 and 100",
+    "mode": "metric",
+    "hub_id": "den",
+    "expect_snow_pct_range": [0, 100]
+  },
+  {
+    "id": "dallas_explain",
+    "description": "Dallas risk payload includes factors and a score",
+    "mode": "deterministic",
+    "hub_ids": ["dal"],
+    "expect_hub_ids_exact": ["dal"],
+    "expect_has_factors": true
+  },
+  {
+    "id": "unknown_hub",
+    "description": "Unknown hub id yields empty deterministic selection",
+    "mode": "resolve",
+    "hub_ids": ["zzz_not_a_hub"],
+    "expect_empty": true
+  }
+]
