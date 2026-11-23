@@ -8,6 +8,8 @@ Take-home for a logistics weather-risk use case: help analysts decide which US d
 
 ## Architecture
 
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for components, repo layout, storage choices, and design rationale.
+
 ```
 Streamlit chat  →  FastAPI (/chat, /hubs, /health, /risk/*)
                       ├── Gemini (structured intent + narration)
